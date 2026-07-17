@@ -23,3 +23,29 @@ updates:
       # let Dependabot bump this; update other crates with
       # `cargo update -p <crate>` and keep the pin intact.
       - dependency-name: "time"
+      # lance = "=8.0.0" pins the whole lance/arrow family internally. A
+      # major-version bump of any of these crates in our own Cargo.toml
+      # diverges from what lance links against, producing duplicate
+      # incompatible copies of the crate in the dependency graph (breaks
+      # the build). Minor/patch bumps within lance's supported range are
+      # still fine and stay unignored.
+      - dependency-name: "lance"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lance-core"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lance-index"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lance-file"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lance-io"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lance-linalg"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lance-table"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "arrow"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "arrow-array"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "arrow-schema"
+        update-types: ["version-update:semver-major"]
