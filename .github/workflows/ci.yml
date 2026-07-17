@@ -30,7 +30,7 @@ jobs:
             platform: darwin-arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up build toolchain
         uses: ./.github/actions/setup-build
@@ -63,7 +63,7 @@ jobs:
   object-store-tests:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up build toolchain
         uses: ./.github/actions/setup-build
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up build toolchain
         uses: ./.github/actions/setup-build
