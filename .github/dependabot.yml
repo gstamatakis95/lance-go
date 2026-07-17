@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: cargo
+    directory: "/rust"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # AGENTS.md Hard Rule 2: rust/Cargo.lock deliberately pins time=0.3.47
+      # to work around a rustc-1.94 / aws-smithy E0119 trait conflict. Do not
+      # let Dependabot bump this; update other crates with
+      # `cargo update -p <crate>` and keep the pin intact.
+      - dependency-name: "time"

@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "lance",
+      "credentials": [
+        {
+          "accessKey": "lance-access-key",
+          "secretKey": "lance-secret-key"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

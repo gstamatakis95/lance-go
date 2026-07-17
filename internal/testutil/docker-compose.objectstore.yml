@@ -1,0 +1,93 @@
+# Object-store emulators for lance-go integration tests.
+#
+# Start/stop via the repository Makefile:
+#
+#   make object-store-up      # up -d --wait + create the lance-test buckets
+#   make object-store-down
+#
+# Then run the gated tests:
+#
+#   LANCE_GO_OBJECT_STORE_TESTS=1 go test ./lance -race -count=1 -run TestObjectStore -v
+#
+# Endpoints (overridable in the tests via LANCE_GO_{S3,AZURITE,GCS}_ENDPOINT):
+#   SeaweedFS S3 gateway:  http://localhost:8333  (creds: see seaweedfs-s3.json)
+#   Azurite blob:          http://localhost:10000 (devstoreaccount1 well-known key)
+#   fake-gcs-server:       http://localhost:4443  (unauthenticated, http scheme)
+name: lance-go-objectstore
+
+services:
+  seaweedfs:
+    # Pinned: lance commits manifests with conditional puts (If-None-Match),
+    # which SeaweedFS only supports in recent releases; a floating tag could
+    # silently regress CI.
+    image: chrislusf/seaweedfs:4.38
+    # Single-container "server" mode with the S3 gateway enabled. Credentials
+    # are static (seaweedfs-s3.json). The small volume size limit keeps disk
+    # usage down for test data.
+    command: server -s3 -s3.config=/etc/seaweedfs/s3.json -dir=/data -master.volumeSizeLimitMB=256 -ip.bind=0.0.0.0
+    volumes:
+      - ./seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    ports:
+      - "8333:8333"
+    healthcheck:
+      # The S3 gateway is the last component to come up; probe its /status
+      # endpoint (returns 200 without auth once the gateway is serving).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/status"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 5s
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    # Blob service only; lance only needs blob storage. In-memory persistence
+    # keeps the container stateless between runs.
+    command: azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --skipApiVersionCheck --inMemoryPersistence
+    ports:
+      - "10000:10000"
+    healthcheck:
+      # The azurite image is node-based and ships no curl/wget; probe with
+      # node. Any HTTP response (even 4xx) means the listener is up.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:10000/devstoreaccount1?comp=list',r=>process.exit(0)).on('error',()=>process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 5s
+
+  fake-gcs:
+    # NOT the stock fsouza/fake-gcs-server: object_store (which lance uses
+    # for GCS) talks the GCS *XML* API for uploads (PUT object, multipart),
+    # which upstream fake-gcs-server does not implement (see
+    # fsouza/fake-gcs-server#1164). This fork adds it and is the image the
+    # upstream apache/arrow-rs-object-store CI runs against.
+    image: tustvold/fake-gcs-server:latest
+    # The image is published for linux/amd64 only; arm64 hosts run it under
+    # emulation (it is a small pure-Go server, this is fine).
+    platform: linux/amd64
+    # -scheme http: serve plain HTTP (object_store is pointed at it with
+    #   google_base_url + allow_http).
+    # -public-host must equal the host:port clients dial: fake-gcs-server
+    #   routes the XML API by Host header (404 for any other host).
+    command: -scheme http -port 4443 -backend memory -external-url http://localhost:4443 -public-host localhost:4443
+    ports:
+      - "4443:4443"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:4443/storage/v1/b?project=lance",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 5s

@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cold Rust builds take 6-25 min; never stack superseded runs.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  # Release artifacts support macOS 13 and later. Keeping this explicit also
+  # prevents Rust and cgo objects from inheriting different runner defaults.
+  MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-amd64
+          - os: ubuntu-24.04-arm
+            platform: linux-arm64
+          - os: macos-15
+            platform: darwin-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up build toolchain
+        uses: ./.github/actions/setup-build
+        with:
+          cache-key: ${{ matrix.platform }}
+          rust-components: rustfmt, clippy
+
+      - name: Build Rust FFI library
+        run: make rust
+
+      - name: Header up to date
+        run: make header-check
+
+      - name: Rust tests
+        run: make rust-test
+
+      - name: Go tests (race)
+        run: make go-test
+
+      - name: Go tests (strict cgo pointer checking)
+        run: make go-test-cgocheck
+
+      - name: Lint
+        run: make lint
+
+      - name: Docs up to date
+        if: matrix.platform == 'linux-amd64'
+        run: make docs-check
+
+  object-store-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up build toolchain
+        uses: ./.github/actions/setup-build
+        with:
+          cache-key: linux-amd64
+
+      - name: Build Rust FFI library
+        run: make rust
+
+      - name: Start object-store emulators
+        run: make object-store-up
+
+      - name: Object-store tests
+        env:
+          LANCE_GO_OBJECT_STORE_TESTS: "1"
+        run: go test ./... -run ObjectStore -count=1 -v
+
+      - name: Stop object-store emulators
+        if: always()
+        run: make object-store-down
+
+  bench:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up build toolchain
+        uses: ./.github/actions/setup-build
+        with:
+          cache-key: linux-amd64
+
+      - name: Build Rust FFI library
+        run: make rust
+
+      - name: Benchmarks
+        run: go test ./lance -bench . -benchtime 1x -run '^$' -count=1

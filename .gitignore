@@ -1,0 +1,15 @@
+# Rust
+rust/target/
+
+# IDE
+.idea/
+*.iml
+
+# Build/release output
+dist/
+
+# Prebuilt native libs extracted by scripts/download-artifacts.sh
+lib/
+
+# OS
+.DS_Store

@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            os: linux
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: arm64
+          - runner: macos-15
+            os: darwin
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up build toolchain
+        uses: ./.github/actions/setup-build
+        with:
+          cache-key: ${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Build Rust FFI library
+        run: make rust
+
+      - name: Run Rust tests
+        run: make rust-test
+
+      - name: Verify header is up to date
+        run: make header-check
+
+      - name: Package artifact
+        run: |
+          staging="$(mktemp -d)"
+          cp rust/target/release/liblance_go.a "$staging/"
+          cp include/lance_go.h "$staging/"
+          cp LICENSE "$staging/"
+          mkdir -p dist
+          tar -czf "dist/liblance_go-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" -C "$staging" .
+
+      - name: Smoke-test packaged artifact
+        run: ./scripts/smoke-test-artifact.sh "dist/liblance_go-${{ matrix.os }}-${{ matrix.arch }}.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: liblance_go-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/liblance_go-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum liblance_go-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/liblance_go-*.tar.gz
+            dist/SHA256SUMS
+          generate_release_notes: true

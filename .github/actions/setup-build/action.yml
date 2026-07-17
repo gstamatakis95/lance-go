@@ -1,0 +1,53 @@
+name: Setup build toolchain
+description: >
+  Install protoc, the pinned Rust toolchain (with rust-cache), and Go.
+  Does not run `make rust` — callers build the FFI shim themselves since
+  release.yml builds differently than ci.yml. Assumes the repo has already
+  been checked out.
+
+inputs:
+  rust-toolchain:
+    description: Rust toolchain version to install (dtolnay/rust-toolchain).
+    required: false
+    default: "1.94.0"
+  go-version:
+    description: Go version to install (actions/setup-go).
+    required: false
+    default: "1.25"
+  cache-key:
+    description: >
+      Value for Swatinem/rust-cache's `shared-key` input, so callers can keep
+      per-matrix-leg cache isolation. Left unset to fall back to rust-cache's
+      own default key derivation.
+    required: false
+    default: ""
+  rust-components:
+    description: >
+      Comma-separated rustup components to install alongside the toolchain
+      (e.g. "rustfmt, clippy"). Left unset to install none beyond the default.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ github.token }}
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ inputs.rust-toolchain }}
+        components: ${{ inputs.rust-components }}
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: rust
+        shared-key: ${{ inputs.cache-key }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}

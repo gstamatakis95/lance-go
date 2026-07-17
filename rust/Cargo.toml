@@ -1,0 +1,52 @@
+[package]
+name = "lance-go-ffi"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[workspace]
+members = ["ffi-macros"]
+
+[lib]
+name = "lance_go"
+crate-type = ["staticlib"]
+
+[dependencies]
+lance = { version = "=8.0.0", features = ["dynamodb", "substrait", "fp16kernels"] }
+lance-core = "=8.0.0"
+lance-index = { version = "=8.0.0", features = ["tokenizer-lindera", "tokenizer-jieba"] }
+lance-file = "=8.0.0"
+lance-io = "=8.0.0"
+lance-linalg = "=8.0.0"
+lance-table = "=8.0.0"
+object_store = "=0.13.2"
+bytes = "=1.12.1"
+async-trait = "=0.1.89"
+arrow = { version = "58", features = ["ffi"] }
+arrow-array = "58"
+arrow-schema = "58"
+chrono = "0.4"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tokio-util = "0.7"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+prost = "=0.14.4"
+libc = "0.2"
+base64 = "0.22"
+uuid = "1"
+lance-go-ffi-macros = { path = "ffi-macros" }
+
+[build-dependencies]
+cbindgen = "0.29"
+
+[profile.release]
+panic = "unwind"
+# The shim is distributed as a static archive and linked into Go binaries.
+# Removing native debug info keeps the archive practical without imposing
+# whole-program LTO's high build and link cost on every consumer and CI job.
+strip = "debuginfo"
+
+[profile.dev]
+panic = "unwind"
